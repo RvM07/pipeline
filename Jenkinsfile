@@ -1,6 +1,10 @@
 pipeline {
     agent any
 
+    environment {
+        PATH = "/bin:/usr/bin:/usr/local/bin:/opt/homebrew/bin"
+    }
+
     stages {
 
         stage('Checkout Code') {
@@ -56,6 +60,7 @@ pipeline {
         }
     }
 }
+
 
 
 
