@@ -2,10 +2,9 @@ pipeline {
     agent any
 
     environment {
-        PATH = "/usr/local/bin:${env.PATH}"
-        DOCKER_IMAGE = "myflaskapp:latest"
-        CONTAINER_NAME = "flaskdemo"
+        PATH = "/bin:/usr/bin:/usr/local/bin:/opt/homebrew/bin"
     }
+
 
     stages {
 
@@ -59,4 +58,5 @@ pipeline {
         }
     }
 }
+
 
