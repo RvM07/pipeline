@@ -2,7 +2,6 @@ pipeline {
     agent any
 
     environment {
-        # Ensure Jenkins can find Docker on macOS
         PATH = "/usr/local/bin:${env.PATH}"
         DOCKER_IMAGE = "myflaskapp:latest"
         CONTAINER_NAME = "flaskdemo"
@@ -60,3 +59,4 @@ pipeline {
         }
     }
 }
+
