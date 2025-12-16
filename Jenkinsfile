@@ -1,13 +1,6 @@
 pipeline {
     agent any
 
-    environment {
-        PATH = "/bin:/usr/bin:/usr/local/bin:/opt/homebrew/bin"
-        APP_NAME = "flaskdemo"
-        IMAGE_NAME = "myflaskapp:latest"
-        PORT = "5000"
-    }
-
     stages {
 
         stage('Checkout Code') {
@@ -20,7 +13,7 @@ pipeline {
             steps {
                 script {
                     echo "Building Flask Docker Image..."
-                    sh "docker build -t ${IMAGE_NAME} ."
+                    sh "docker build -t myflaskapp:latest ."
                 }
             }
         }
@@ -29,12 +22,8 @@ pipeline {
             steps {
                 script {
                     echo "Stopping old container if exists..."
-                    sh """
-                    if docker ps -a --format '{{.Names}}' | grep -q '^${APP_NAME}\$'; then
-                        docker stop ${APP_NAME} || true
-                        docker rm ${APP_NAME} || true
-                    fi
-                    """
+                    sh "docker stop flaskdemo || exit 0"
+                    sh "docker rm flaskdemo || exit 0"
                 }
             }
         }
@@ -42,26 +31,8 @@ pipeline {
         stage('Run New Container') {
             steps {
                 script {
-                    echo "Running new container on port ${PORT}..."
-                    sh """
-                    docker run -d --name ${APP_NAME} -p ${PORT}:${PORT} ${IMAGE_NAME} || \
-                    (echo 'Port ${PORT} is busy. Please stop any process using it.' && exit 1)
-                    """
-                }
-            }
-        }
-
-        stage('Wait for App') {
-            steps {
-                script {
-                    echo "Waiting for Flask app to start..."
-                    retry(10) {
-                        sleep 5
-                        def status = sh(script: "curl -s -o /dev/null -w '%{http_code}' http://localhost:${PORT}", returnStdout: true).trim()
-                        if (status != "200") {
-                            error("App not ready yet")
-                        }
-                    }
+                    echo "Running new container on port 5000..."
+                    sh "docker run -d --name flaskdemo -p 5000:5000 myflaskapp:latest"
                 }
             }
         }
@@ -69,26 +40,21 @@ pipeline {
         stage('Test Application') {
             steps {
                 script {
-                    echo "Testing application..."
-                    sh "curl http://localhost:${PORT}"
+                    echo "Waiting for app to start..."
+                    sleep(5)
+
+                    echo "Testing application on port 5000..."
+                    sh "curl http://localhost:5000"
                 }
             }
         }
 
         stage('Deploy Success') {
             steps {
-                echo "✅ Flask App is running successfully at http://localhost:${PORT}"
-            }
-        }
-    }
-
-    post {
-        failure {
-            script {
-                echo "❌ Pipeline failed! Cleaning up..."
-                sh "docker stop ${APP_NAME} || true"
-                sh "docker rm ${APP_NAME} || true"
+                echo "Flask App is running successfully at: http://localhost:5000"
             }
         }
     }
 }
+
+
