@@ -8,7 +8,7 @@ pipeline {
     stages {
         stage('Checkout Code') {
             steps {
-                git branch: 'master', url: 'https://github.com/shaanman23/my-flask-app.git'
+                git branch: 'main', url: 'https://github.com/RvM07/pipeline'
             }
         }
 
@@ -39,3 +39,4 @@ pipeline {
         }
     }
 }
+
