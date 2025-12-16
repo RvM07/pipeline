@@ -11,41 +11,33 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                script {
-                    echo "Building Flask Docker Image..."
-                    bat "docker build -t myflaskapp:latest ."
-                }
+                echo "Building Flask Docker Image..."
+                sh "docker build -t myflaskapp:latest ."
             }
         }
 
         stage('Stop Old Container') {
             steps {
-                script {
-                    echo "Stopping old container if exists..."
-                    bat "docker stop flaskdemo || exit 0"
-                    bat "docker rm flaskdemo || exit 0"
-                }
+                echo "Stopping old container if exists..."
+                sh "docker stop flaskdemo || true"
+                sh "docker rm flaskdemo || true"
             }
         }
 
         stage('Run New Container') {
             steps {
-                script {
-                    echo "Running new container on port 5000..."
-                    bat "docker run -d --name flaskdemo -p 5000:5000 myflaskapp:latest"
-                }
+                echo "Running new container on port 5000..."
+                sh "docker run -d --name flaskdemo -p 5000:5000 myflaskapp:latest"
             }
         }
 
         stage('Test Application') {
             steps {
-                script {
-                    echo "Waiting for app to start..."
-                    sleep(5)
+                echo "Waiting for app to start..."
+                sleep(time: 5, unit: 'SECONDS')
 
-                    echo "Testing application on port 5000..."
-                    bat "curl http://localhost:5000"
-                }
+                echo "Testing application on port 5000..."
+                sh "curl http://localhost:5000"
             }
         }
 
@@ -56,6 +48,3 @@ pipeline {
         }
     }
 }
-
-
-
