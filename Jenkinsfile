@@ -2,9 +2,10 @@ pipeline {
     agent any
 
     environment {
-        PATH = "/bin:/usr/bin:/usr/local/bin:/opt/homebrew/bin:$PATH"
-        DOCKER_IMAGE = "myflaskapp:latest"
-        CONTAINER_NAME = "flaskdemo"
+        PATH = "/bin:/usr/bin:/usr/local/bin:/opt/homebrew/bin"
+        APP_NAME = "flaskdemo"
+        IMAGE_NAME = "myflaskapp:latest"
+        PORT = "5000"
     }
 
     stages {
@@ -19,7 +20,7 @@ pipeline {
             steps {
                 script {
                     echo "Building Flask Docker Image..."
-                    sh "docker build -t ${DOCKER_IMAGE} ."
+                    sh "docker build -t ${IMAGE_NAME} ."
                 }
             }
         }
@@ -28,8 +29,26 @@ pipeline {
             steps {
                 script {
                     echo "Stopping old container if exists..."
-                    sh "docker stop ${CONTAINER_NAME} || true"
-                    sh "docker rm ${CONTAINER_NAME} || true"
+                    sh """
+                    if docker ps -a --format '{{.Names}}' | grep -Eq '^${APP_NAME}\$'; then
+                        docker stop ${APP_NAME} || true
+                        docker rm ${APP_NAME} || true
+                    fi
+                    """
+                }
+            }
+        }
+
+        stage('Check Port') {
+            steps {
+                script {
+                    echo "Checking if port ${PORT} is free..."
+                    sh """
+                    if lsof -i :${PORT}; then
+                        echo "Port ${PORT} is in use. Exiting..."
+                        exit 1
+                    fi
+                    """
                 }
             }
         }
@@ -37,8 +56,25 @@ pipeline {
         stage('Run New Container') {
             steps {
                 script {
-                    echo "Running new container on port 5000..."
-                    sh "docker run -d --name ${CONTAINER_NAME} -p 5000:5000 ${DOCKER_IMAGE}"
+                    echo "Running new container on port ${PORT}..."
+                    sh "docker run -d --name ${APP_NAME} -p ${PORT}:${PORT} ${IMAGE_NAME}"
+                }
+            }
+        }
+
+        stage('Wait for App') {
+            steps {
+                script {
+                    echo "Waiting for the Flask app to start..."
+                    // Wait until the app responds (timeout after 30s)
+                    timeout(time: 30, unit: 'SECONDS') {
+                        waitUntil {
+                            script {
+                                def status = sh(script: "curl -s -o /dev/null -w '%{http_code}' http://localhost:${PORT}", returnStdout: true).trim()
+                                return status == "200"
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -46,18 +82,15 @@ pipeline {
         stage('Test Application') {
             steps {
                 script {
-                    echo "Waiting for app to start..."
-                    sleep(5)
-
-                    echo "Testing application on port 5000..."
-                    sh "curl -f http://localhost:5000 || exit 1"
+                    echo "Testing application on port ${PORT}..."
+                    sh "curl http://localhost:${PORT}"
                 }
             }
         }
 
         stage('Deploy Success') {
             steps {
-                echo "Flask App is running successfully at: http://localhost:5000"
+                echo "Flask App is running successfully at: http://localhost:${PORT}"
             }
         }
     }
