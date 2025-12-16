@@ -1,17 +1,21 @@
 pipeline {
     agent any
+
     environment {
+        PATH = "/bin:/usr/bin:/usr/local/bin:/opt/homebrew/bin"
         APP_NAME = "flaskdemo"
         IMAGE_NAME = "myflaskapp:latest"
         PORT = "5000"
     }
+
     stages {
+
         stage('Checkout Code') {
             steps {
                 git branch: 'main', url: 'https://github.com/RvM07/pipeline'
             }
         }
-        
+
         stage('Build Docker Image') {
             steps {
                 script {
@@ -20,92 +24,71 @@ pipeline {
                 }
             }
         }
-        
-        stage('Clean Port and Stop Old Container') {
+
+        stage('Stop Old Container') {
             steps {
                 script {
-                    echo "Cleaning port ${PORT} and stopping old container..."
+                    echo "Stopping old container if exists..."
                     sh """
-                        # Stop and remove old container if exists
-                        if docker ps -a --format '{{.Names}}' | grep -q '^${APP_NAME}\$'; then
-                            docker stop ${APP_NAME} || true
-                            docker rm ${APP_NAME} || true
-                        fi
-                        
-                        # Wait for container to fully stop
-                        sleep 2
-                        
-                        # Kill any process using port ${PORT} (handles macOS AirPlay and stuck processes)
-                        lsof -ti:${PORT} | xargs kill -9 2>/dev/null || true
-                        
-                        # Wait for port to be released
-                        sleep 2
+                    if docker ps -a --format '{{.Names}}' | grep -q '^${APP_NAME}\$'; then
+                        docker stop ${APP_NAME} || true
+                        docker rm ${APP_NAME} || true
+                    fi
                     """
                 }
             }
         }
-        
+
         stage('Run New Container') {
             steps {
                 script {
                     echo "Running new container on port ${PORT}..."
-                    sh "docker run -d --name ${APP_NAME} -p ${PORT}:${PORT} ${IMAGE_NAME}"
+                    sh """
+                    docker run -d --name ${APP_NAME} -p ${PORT}:${PORT} ${IMAGE_NAME} || \
+                    (echo 'Port ${PORT} is busy. Please stop any process using it.' && exit 1)
+                    """
                 }
             }
         }
-        
+
         stage('Wait for App') {
             steps {
                 script {
                     echo "Waiting for Flask app to start..."
-                    timeout(time: 60, unit: 'SECONDS') {
-                        waitUntil {
-                            script {
-                                def status = sh(
-                                    script: "curl -s -o /dev/null -w '%{http_code}' http://localhost:${PORT}",
-                                    returnStatus: true
-                                )
-                                return status == 0
-                            }
+                    retry(10) {
+                        sleep 5
+                        def status = sh(script: "curl -s -o /dev/null -w '%{http_code}' http://localhost:${PORT}", returnStdout: true).trim()
+                        if (status != "200") {
+                            error("App not ready yet")
                         }
                     }
-                    echo "Flask app is ready!"
                 }
             }
         }
-        
+
         stage('Test Application') {
             steps {
                 script {
-                    echo "Testing application on port ${PORT}..."
-                    sh "curl -f http://localhost:${PORT}"
+                    echo "Testing application..."
+                    sh "curl http://localhost:${PORT}"
                 }
             }
         }
-        
+
         stage('Deploy Success') {
             steps {
-                echo "✅ Flask App is running successfully!"
-                echo "🔗 Access it at: http://localhost:${PORT}"
-                script {
-                    sh "docker ps | grep ${APP_NAME}"
-                }
+                echo "✅ Flask App is running successfully at http://localhost:${PORT}"
             }
         }
     }
-    
+
     post {
         failure {
-            echo "❌ Pipeline failed! Cleaning up..."
             script {
-                sh """
-                    docker stop ${APP_NAME} 2>/dev/null || true
-                    docker rm ${APP_NAME} 2>/dev/null || true
-                """
+                echo "❌ Pipeline failed! Cleaning up..."
+                sh "docker stop ${APP_NAME} || true"
+                sh "docker rm ${APP_NAME} || true"
             }
-        }
-        always {
-            echo "Pipeline execution completed."
         }
     }
 }
