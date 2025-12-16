@@ -2,41 +2,61 @@ pipeline {
     agent any
 
     environment {
-        DOCKER = "/usr/local/bin/docker"
+        # Ensure Jenkins can find Docker on macOS
+        PATH = "/usr/local/bin:${env.PATH}"
+        DOCKER_IMAGE = "myflaskapp:latest"
+        CONTAINER_NAME = "flaskdemo"
     }
 
     stages {
+
         stage('Checkout Code') {
             steps {
-                git branch: 'main', url: 'https://github.com/RvM07/pipeline'
+                git branch: 'main', url: 'https://github.com/RvM07/pipeline.git'
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                sh "${DOCKER} build -t myflaskapp:latest ."
+                echo "Building Docker image..."
+                sh "docker build -t ${DOCKER_IMAGE} ."
             }
         }
 
         stage('Stop Old Container') {
             steps {
-                sh "${DOCKER} stop flaskdemo || true"
-                sh "${DOCKER} rm flaskdemo || true"
+                echo "Stopping old container if exists..."
+                sh "docker stop ${CONTAINER_NAME} || true"
+                sh "docker rm ${CONTAINER_NAME} || true"
             }
         }
 
         stage('Run New Container') {
             steps {
-                sh "${DOCKER} run -d --name flaskdemo -p 5000:5000 myflaskapp:latest"
+                echo "Running new container..."
+                sh "docker run -d --name ${CONTAINER_NAME} -p 5000:5000 ${DOCKER_IMAGE}"
             }
         }
 
         stage('Test Application') {
             steps {
+                echo "Waiting for container to start..."
                 sleep(time: 5, unit: 'SECONDS')
-                sh "curl http://localhost:5000"
+                echo "Testing Flask app..."
+                sh "curl -f http://localhost:5000 || exit 1"
             }
         }
     }
-}
 
+    post {
+        success {
+            echo "Pipeline completed successfully! Flask app is running."
+        }
+        failure {
+            echo "Pipeline failed. Check logs above for details."
+        }
+        always {
+            echo "Pipeline finished."
+        }
+    }
+}
