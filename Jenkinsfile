@@ -2,7 +2,6 @@ pipeline {
     agent any
 
     environment {
-        PATH = "/bin:/usr/bin:/usr/local/bin:/opt/homebrew/bin"
         APP_NAME = "flaskdemo"
         IMAGE_NAME = "myflaskapp:latest"
         PORT = "5000"
@@ -30,23 +29,9 @@ pipeline {
                 script {
                     echo "Stopping old container if exists..."
                     sh """
-                    if docker ps -a --format '{{.Names}}' | grep -Eq '^${APP_NAME}\$'; then
+                    if docker ps -a --format '{{.Names}}' | grep -q '^${APP_NAME}\$'; then
                         docker stop ${APP_NAME} || true
                         docker rm ${APP_NAME} || true
-                    fi
-                    """
-                }
-            }
-        }
-
-        stage('Check Port') {
-            steps {
-                script {
-                    echo "Checking if port ${PORT} is free..."
-                    sh """
-                    if lsof -i :${PORT}; then
-                        echo "Port ${PORT} is in use. Exiting..."
-                        exit 1
                     fi
                     """
                 }
@@ -65,14 +50,12 @@ pipeline {
         stage('Wait for App') {
             steps {
                 script {
-                    echo "Waiting for the Flask app to start..."
-                    // Wait until the app responds (timeout after 30s)
-                    timeout(time: 30, unit: 'SECONDS') {
-                        waitUntil {
-                            script {
-                                def status = sh(script: "curl -s -o /dev/null -w '%{http_code}' http://localhost:${PORT}", returnStdout: true).trim()
-                                return status == "200"
-                            }
+                    echo "Waiting for Flask app to start..."
+                    retry(10) {  // Retry up to 10 times (about 50s total if sleep 5s)
+                        sleep 5
+                        def status = sh(script: "curl -s -o /dev/null -w '%{http_code}' http://localhost:${PORT}", returnStdout: true).trim()
+                        if (status != "200") {
+                            error("App not ready yet")
                         }
                     }
                 }
