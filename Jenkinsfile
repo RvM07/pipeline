@@ -2,60 +2,42 @@ pipeline {
     agent any
 
     stages {
-
         stage('Checkout Code') {
             steps {
-                git branch: 'main', url: 'https://github.com/RvM07/pipeline'
+                git branch: 'main', url: 'https://github.com/RvM07/pipeline.git'
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                script {
-                    echo "Building Flask Docker Image..."
-                    sh "docker build -t myflaskapp:latest ."
-                }
+                echo 'Building Flask Docker Image...'
+                bat 'docker build -t flask-app .'
             }
         }
 
         stage('Stop Old Container') {
             steps {
-                script {
-                    echo "Stopping old container if exists..."
-                    sh "docker stop flaskdemo || exit 0"
-                    sh "docker rm flaskdemo || exit 0"
-                }
+                bat 'docker stop flask-container || exit 0'
+                bat 'docker rm flask-container || exit 0'
             }
         }
 
         stage('Run New Container') {
             steps {
-                script {
-                    echo "Running new container on port 5001..."
-                    sh "docker run -d --name flaskdemo -p 5001:5000 myflaskapp:latest"
-                }
+                bat 'docker run -d -p 5000:5000 --name flask-container flask-app'
             }
         }
 
         stage('Test Application') {
             steps {
-                script {
-                    echo "Waiting for app to start..."
-                    sleep(5)
-
-                    echo "Testing application on port 5001..."
-                    sh "curl http://localhost:5001"
-                }
+                bat 'curl http://localhost:5000'
             }
         }
 
         stage('Deploy Success') {
             steps {
-                echo "Flask App is running successfully at: http://localhost:5001"
+                echo 'Deployment completed successfully!'
             }
         }
     }
 }
-
-
-
